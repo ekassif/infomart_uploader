@@ -6,7 +6,11 @@ upload it to S3 and then log success or failure information.
 <br/>
 ## Directions:
 * The service needs the following environment variable to be defined:
-    * **ENV**: The environment name (dev, test, prod etc). It will use this variable to retrieve the other information it needs from the SSM Parameter store, as defined below.
+    * **infomart.env**: The environment name (dev, test, prod etc). It will use this variable to retrieve the other information it needs from the SSM Parameter store, as defined below. For example, for "dev", 
+      an environment property infomart.env=dev should be defined.
+      The service will use this to load SSM Parameters replacing $ENV with "dev", so
+      /application/infomart/dev/export/* will be the path used.
+    * **infomart.aws_region**: OPTIONAL. The AWS region to use. If not present, the service will use the EC2 metadata to retrieve it.
 * The following SSM parameters needed for this service to run ($ENV is defined above):
     * **/application/infomart/$ENV/export/s3-bucket**: The S3 bucket name to which this service will upload the infomart export files
     * **/application/infomart/$ENV/export/s3-prefix**: The S3 prefix to use for the files this service will upload to S3. Example "/infomart/exports/"

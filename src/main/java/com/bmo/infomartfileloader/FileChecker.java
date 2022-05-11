@@ -1,11 +1,5 @@
 package com.bmo.infomartfileloader;
 
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-
-import java.io.File;
-import java.nio.file.*;
-import java.time.LocalDateTime;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.regions.Regions;
@@ -13,32 +7,101 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.zeroturnaround.zip.ZipUtil;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.FileTime;
+import java.util.Arrays;
+
 
 @Component
 public class FileChecker {
-    private LocalDateTime lastChecked = null;
+    private Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    WatchService watchService;
+    @Autowired
+    private Params params;
 
-    @Scheduled(fixedDelay = Long.MAX_VALUE) // work around to use the WatchService infinite forloop
+
+//    @Scheduled(fixedDelay = Long.MAX_VALUE) // work around to use the WatchService infinite forloop
     public void checkDirectoryForNewFiles() throws Exception{
-        watchService = FileSystems.getDefault().newWatchService();
-        Path dir = Paths.get("c:/tmp/infomart");
-        dir.register(watchService, StandardWatchEventKinds.ENTRY_CREATE);
-        while (true){
-            WatchKey key = watchService.take();
-            System.out.println("");
-            for (WatchEvent<?> event: key.pollEvents()){
-                System.out.println("GOT A NEW EVENT FROM KEY");
-                WatchEvent.Kind kind = event.kind();
-                if (kind == StandardWatchEventKinds.ENTRY_CREATE){
-                    System.out.println("New File: " + event.context());
-                    uploadFile( dir.toString() ,  event.context().toString());
-                }
-            }
-            System.out.println("EXITING INSIDE LOOP LOOP");
-            key.reset();
+        logger.debug("Checking infomart export directory for new exports");
+
+        File dir = new File(params.getExportDirectory());
+        if (!dir.exists()){
+            logger.error("Export Directory '" + params.getExportDirectory() + "' Does not exist. We cannot scan for new export files");
+            return;
         }
+
+        if (!dir.isDirectory()){
+            logger.error("Export Directory '" + params.getExportDirectory() + "' is NOT a directory. We cannot scan for new export files");
+            return;
+        }
+
+
+        ValueHolder<IOException> exception = ValueHolder.empty();
+        File[] files = dir.listFiles(file -> {
+            try{
+                FileTime ft = Files.getLastModifiedTime(file.toPath());
+                return ft.toMillis() > params.getLastExportedFileDatetimeMillis();
+            }
+            catch(IOException e){
+                exception.setValue(e);
+                return false;
+            }
+        });
+        if (!exception.isNull()){
+            // We encountered and IOException. Log and stop execution
+            logger.error("IOException while checking file timestamps");
+            return;
+        }
+
+        // Sort files by date last modified so the latest one is last in the list
+        Arrays.sort(files, (f1, f2) -> {
+            try{
+                FileTime t1 = Files.getLastModifiedTime(f1.toPath());
+                FileTime t2 = Files.getLastModifiedTime(f2.toPath());
+                return t1.compareTo(t2);
+            }
+            catch(IOException e){
+                logger.error("Could not get the file time for one of the two files", e);
+                return f1.getName().compareTo(f2.getName());
+            }
+        });
+
+        // Process the files, (zip -> encrypt -> upload to s3)
+        Arrays.stream(files).forEach(this::processExportFile);
+    }
+
+    @Async
+    public void processExportFile(File file){
+        logger.debug("Processing file: " + file.getName());
+        // 1. Confirm the file is an exported directory with the three expected files within it
+        if (!file.isDirectory()){
+            logger.warn("File '%s' is not a directory. Skipping...".formatted(file.getName()));
+            return;
+        }
+        else{
+            // todo: we will skip this step for now. Fix after with testing.
+        }
+
+        // 2. Zip the directory
+        File zipFile = new File(params.getTempDir() + file.getName() + ".zip");
+        ZipUtil.pack(file, zipFile);
+
+        // 3. Encrypt
+
+
+        // 4. Push to S3
+
+        // 5. Delete any temp files created
     }
 
     private void uploadFile(String dir, String file) throws Exception{
