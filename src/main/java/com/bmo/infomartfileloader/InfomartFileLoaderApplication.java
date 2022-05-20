@@ -1,11 +1,13 @@
 package com.bmo.infomartfileloader;
 
 import com.amazonaws.util.IOUtils;
+import com.bmo.infomartfileloader.pgp.PGPUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.zeroturnaround.zip.ZipUtil;
 
@@ -15,6 +17,7 @@ import java.security.NoSuchProviderException;
 
 @SpringBootApplication
 @EnableScheduling
+@EnableAsync
 public class InfomartFileLoaderApplication {
 
     @Autowired
@@ -45,7 +48,17 @@ public class InfomartFileLoaderApplication {
         ZipUtil.pack(new File("/Users/eiadkassif/tmp/dummy"), zipFile);
 
         FileOutputStream fos = new FileOutputStream("/Users/eiadkassif/tmp/encrypted");
-        OutputStream encryptedStream = pgpUtils.encrypt(pgpFile.getInputStream(), zipFile, fos);
+
+        // Read PGP Key into string, for testing
+        String pgpKeyString = IOUtils.toString(pgpFile.getInputStream());
+        // Now back into InputStream
+        System.out.println("----");
+        System.out.println(pgpKeyString);
+        System.out.println("----");
+        InputStream publicKeyStream = org.apache.commons.io.IOUtils.toInputStream(pgpKeyString, "utf-8");
+
+
+        OutputStream encryptedStream = pgpUtils.encrypt(publicKeyStream, zipFile, fos);
         fos.close();
         fos.flush();
 

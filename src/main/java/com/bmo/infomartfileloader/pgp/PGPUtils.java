@@ -1,5 +1,6 @@
-package com.bmo.infomartfileloader;
+package com.bmo.infomartfileloader.pgp;
 
+import com.bmo.infomartfileloader.Params;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openpgp.*;
 import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
@@ -46,44 +47,32 @@ public class PGPUtils {
 
     }
 
-    public OutputStream encrypt(InputStream pgpFile, File file, OutputStream outputStream){
+    public PGPPublicKey getPublicKey() throws Exception{
+        if (pgpPublicKey == null){
+            InputStream pgpFile = org.apache.commons.io.IOUtils.toInputStream(params.getPgpKey(), "utf-8");
 
-        try {
             PGPPublicKeyRingCollection pgpPublicKeyRings = new PGPPublicKeyRingCollection(
                     PGPUtil.getDecoderStream(pgpFile),
                     new JcaKeyFingerprintCalculator());
             pgpPublicKey = pgpPublicKeyRings.getKeyRings().next().getPublicKey();
-        } catch (IOException e) {
-            logger.error("IOException", e);
-        } catch (PGPException e) {
-            logger.error("PGP Issue", e);
         }
 
-        if (pgpPublicKey == null){
-            logger.error("We do not have a PGP Public Key. We cannot encrypt");
-            return null;
-        }
+        return pgpPublicKey;
+    }
 
-        try
-        {
-            OutputStream out = outputStream==null?new ByteArrayOutputStream():outputStream;
-            PGPEncryptedDataGenerator   cPk = new PGPEncryptedDataGenerator(new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5).setWithIntegrityPacket(true).setSecureRandom(new SecureRandom()).setProvider("BC"));
+    public void encrypt(File file, OutputStream outputStream) throws Exception{
+        PGPEncryptedDataGenerator   cPk = new PGPEncryptedDataGenerator(
+                new JcePGPDataEncryptorBuilder(PGPEncryptedData.CAST5)
+                        .setWithIntegrityPacket(true)
+                        .setSecureRandom(new SecureRandom()).setProvider("BC"));
 
-            cPk.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(pgpPublicKey).setProvider("BC"));
+        cPk.addMethod(new JcePublicKeyKeyEncryptionMethodGenerator(getPublicKey()).setProvider("BC"));
 
-            OutputStream cOut = cPk.open(out, new byte[1 << 16]);
+        OutputStream cOut = cPk.open(outputStream, new byte[1 << 16]);
 
 
-            PGPUtil.writeFileToLiteralData(cOut, PGPLiteralData.BINARY, file, new byte[1 << 16]);
-            cOut.close();
-            return out;
-
-        }
-        catch (PGPException | IOException e)
-        {
-            logger.error("Could not encrypt", e);
-            return null;
-        }
+        PGPUtil.writeFileToLiteralData(cOut, PGPLiteralData.BINARY, file, new byte[1 << 16]);
+        cOut.close();
     }
 
 //    public OutputStream decrypt(InputStream pgpFile, File inputFile){
@@ -170,7 +159,7 @@ public class PGPUtils {
             {
                 pbe = (PGPPublicKeyEncryptedData)it.next();
 
-                sKey = PGPKeyUtil.findSecretKey(pgpSec, pbe.getKeyID(), passwd);
+                sKey = PGPKeyUtils.findSecretKey(pgpSec, pbe.getKeyID(), passwd);
             }
 
             if (sKey == null)

@@ -1,4 +1,4 @@
-package com.bmo.infomartfileloader;
+package com.bmo.infomartfileloader.pgp;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -27,7 +27,7 @@ import org.bouncycastle.openpgp.operator.jcajce.JcePBESecretKeyDecryptorBuilder;
  * Copied from https://github.com/bcgit/bc-java/blob/master/pg/src/main/java/org/bouncycastle/openpgp/examples/PGPExampleUtil.java
  * and modified to fit needs
  */
-class PGPKeyUtil
+class PGPKeyUtils
 {
     static byte[] compressFile(String fileName, int algorithm) throws IOException
     {

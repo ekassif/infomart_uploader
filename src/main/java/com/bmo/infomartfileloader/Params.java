@@ -59,7 +59,7 @@ public class Params {
     @Getter @Value("${infomart.aws_region:null}")
     String awsRegionName;
 
-    @Value("${infomart.use_ssm:false}")
+    @Value("${infomart.use_ssm:true}")
     boolean useSSM;
 
     Region awsRegion;
@@ -112,6 +112,7 @@ public class Params {
                     break;
                 case PARAM_S3_PREFIX:
                     s3prefix = parm.getValue();
+                    if (!s3prefix.endsWith("/")) s3prefix += "/";
                     logger.debug("Found s3prefix param. Value: " + s3prefix);
                     break;
                 case PARAM_CRDS_PGP_KEY:

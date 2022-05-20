@@ -1,4 +1,4 @@
-package com.bmo.infomartfileloader;
+package com.bmo.infomartfileloader.util;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
