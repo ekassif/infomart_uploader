@@ -38,25 +38,20 @@ public class S3Utils {
      * @param file The file to upload
      * @param s3key The file name on the s3 bucket (full path key. e.g. /crds/example.zip.pgp)
      */
-    public void uploadFile(File file, String s3key){
-        try {
-            //This code expects that you have AWS credentials set up per:
-            // https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/setup-credentials.html
+    public void uploadFile(File file, String s3key) throws Exception {
+        //This code expects that you have AWS credentials set up per:
+        // https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/setup-credentials.html
 
 
-            PutObjectRequest request = new PutObjectRequest(params.getS3bucket(), s3key, file);
+        PutObjectRequest request = new PutObjectRequest(params.getS3bucket(), s3key, file);
 
-            // Content type should be detected automatically
+        // Content type should be detected automatically
 //            ObjectMetadata metadata = new ObjectMetadata();
 //            metadata.setContentType("plain/text");
 //            metadata.addUserMetadata("title", "someTitle");
 //            request.setMetadata(metadata);
-            getS3Client().putObject(request);
-        } catch (AmazonServiceException e) {
-            logger.error("Request Failed", e);
-        } catch (SdkClientException e) {
-            logger.error("Could not connect to S3 OR parse response failed", e);
-        }
+        getS3Client().putObject(request);
+
     }
 
     public boolean exists(String s3key){

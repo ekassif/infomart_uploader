@@ -7,8 +7,6 @@ import com.bmo.infomartfileloader.util.ValueHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.zeroturnaround.zip.ZipUtil;
@@ -21,8 +19,7 @@ import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Future;
-
+import java.util.stream.Collectors;
 
 @Component
 public class InfomartExportFileProcessor {
@@ -31,6 +28,7 @@ public class InfomartExportFileProcessor {
     private static final int RC_NOT_DIRECTORY = 10;
     private static final int RC_FILE_ALREADY_UPLOADED = 20;
     private static final int RC_ERROR = -100;
+    private static final int RC_WARNING = 100;
 
     private Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -43,21 +41,50 @@ public class InfomartExportFileProcessor {
     @Autowired
     private PGPUtils pgpUtils;
 
-
-    @Scheduled(initialDelay = 60000, fixedDelay = 300000)
+    @Scheduled(initialDelay = 30000, fixedDelay = 30000)
     public void run(){
-        // 1. Check if  new files have been created in the export directory
+        // Check if  new files have been created in the export directory
         Optional<List<File>> files = checkDirectoryForNewFiles();
-        if (files.isPresent()){
+        if (files.isPresent() && !files.get().isEmpty()){
+            List<Results<File>> results = files.get().parallelStream().map(this::processExportFile).collect(Collectors.toList());
+            ValueHolder<Long> lastExportedTime = new ValueHolder<>(0L);
+            ValueHolder<Boolean> failure = new ValueHolder<>(false);
+            results.forEach(r -> {
+                if (r.isOK()){
+                    if (!failure.getValue()){ // only update if everything so far succeeded
+                        try{
+                            lastExportedTime.setValue(Files.getLastModifiedTime(r.getValue().toPath()).toMillis());
+                        }
+                        catch(IOException e){
+                            logger.error("Could not get last modification time for file: " + r.getValue().getPath());
+                        }
+                    }
+                }
+                else if (r.getReturnCode() < 0) { // error
+                   logger.error(r.getErrorMessage(), r.getError());
+                   failure.setValue(true);
+                }
+                else{ // warning
+                    logger.warn(r.getErrorMessage());
+                }
+            });
 
+            if (lastExportedTime.getValue() > 0){
+                try {
+                    params.setLastExportedFileDatetimeMillis(lastExportedTime.getValue());
+                }
+                catch(RuntimeException e){
+                    logger.error("Error while saving 'lastDatetime' for files processed", e);
+                }
+            }
+        }
+        else{
+            logger.info("No new export files to process");
         }
     }
 
-
-
-
     public Optional<List<File>> checkDirectoryForNewFiles(){
-        logger.debug("Checking infomart export directory for new exports");
+        logger.info("Checking infomart export directory for new exports");
 
         File dir = new File(params.getExportDirectory());
         if (!dir.exists()){
@@ -103,17 +130,16 @@ public class InfomartExportFileProcessor {
         return Optional.of(Arrays.asList(files));
     }
 
-    @Async
-    public Future<Results<File>> processExportFile(File file){
+    public Results<File> processExportFile(File file){
         logger.debug("Processing file: " + file.getName());
         // Confirm the file is an exported directory with the three expected files within it
         if (!file.isDirectory()){
             logger.warn("File '%s' is not a directory. Skipping...".formatted(file.getName()));
-            return new AsyncResult(Results.builder()
+            return Results.<File>builder()
                     .value(file)
                     .returnCode(RC_NOT_DIRECTORY)
                     .errorMessage("File %s is not a directory and will not be processed".formatted(file.getName()))
-                    .build());
+                    .build();
         }
         else{
             // todo: we will skip this step for now. Confirm directory contents match what we expect in this directory
@@ -125,21 +151,24 @@ public class InfomartExportFileProcessor {
         // Check if this file has already been uploaded to S3.
         try{
             if (s3Utils.exists(s3FileName)){
-                return new AsyncResult(Results.builder()
+                return Results.<File>builder()
                         .value(file)
                         .errorMessage("File has already been uploaded")
                         .returnCode(RC_FILE_ALREADY_UPLOADED)
-                        .build());
+                        .build();
             }
         }
         catch (RuntimeException e){
-            return new AsyncResult(Results.builder()
+            return Results.<File>builder()
                     .value(file)
                     .error(e)
                     .returnCode(RC_ERROR)
-                    .build());
+                    .build();
         }
 
+        // Make sure temp dir exists or create it
+        File tempDir = new File(params.getTempDir());
+        if (!tempDir.exists()) tempDir.mkdirs();
 
         // Zip the directory
         File zipFile = new File(params.getTempDir() + file.getName() + ".zip");
@@ -154,7 +183,12 @@ public class InfomartExportFileProcessor {
             encOut.close();
         }
         catch(Exception e){
-
+            return Results.<File>builder()
+                    .returnCode(RC_ERROR)
+                    .value(file)
+                    .errorMessage("Could not encrypt file")
+                    .error(e)
+                    .build();
         }
 
 
@@ -162,8 +196,13 @@ public class InfomartExportFileProcessor {
         try {
             s3Utils.uploadFile(encFile, s3FileName);
         }
-        catch (RuntimeException e){
-
+        catch (Exception e){
+            return Results.<File>builder()
+                    .returnCode(RC_ERROR)
+                    .value(file)
+                    .errorMessage("Could not upload file to s3")
+                    .error(e)
+                    .build();
         }
 
         // Delete any temp files created
@@ -172,13 +211,18 @@ public class InfomartExportFileProcessor {
             encFile.delete();
         }
         catch(Exception e){
-
+            return Results.<File>builder()
+                    .returnCode(RC_WARNING)
+                    .value(file)
+                    .errorMessage("Could not delete temp files")
+                    .error(e)
+                    .build();
         }
 
-        return new AsyncResult(Results.builder()
+        return Results.<File>builder()
                 .value(file)
                 .returnCode(0)
-                .build());
+                .build();
     }
 
 

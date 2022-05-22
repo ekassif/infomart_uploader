@@ -5,9 +5,7 @@ import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagement;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagementClientBuilder;
-import com.amazonaws.services.simplesystemsmanagement.model.GetParametersByPathRequest;
-import com.amazonaws.services.simplesystemsmanagement.model.GetParametersByPathResult;
-import com.amazonaws.services.simplesystemsmanagement.model.Parameter;
+import com.amazonaws.services.simplesystemsmanagement.model.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
@@ -36,7 +34,7 @@ public class Params {
     final String PARAM_LAST_EXPORT_DATETIME = "last_export_datetime_millis";
 
     @Getter
-    private Long lastExportedFileDatetimeMillis = null;
+    private Long lastExportedFileDatetimeMillis = 0L;
 
     @Getter @Value("${infomart.s3bucket:null}")
     private String s3bucket = null;
@@ -90,7 +88,16 @@ public class Params {
      */
     public void setLastExportedFileDatetimeMillis(long lastExportedFileDatetimeMillis){
         this.lastExportedFileDatetimeMillis = lastExportedFileDatetimeMillis;
-        // todo: UPDATE SSM PARAMS
+        if (this.useSSM){
+            AWSSimpleSystemsManagement ssmClient = AWSSimpleSystemsManagementClientBuilder
+                    .standard()
+                    .withRegion(this.awsRegion.getName())
+                    .build();
+            PutParameterResult ppr = ssmClient.putParameter(new PutParameterRequest()
+                .withType(ParameterType.String)
+                .withName(PARAM_PATH.formatted(getEnv()) + PARAM_LAST_EXPORT_DATETIME)
+                .withValue(String.valueOf(lastExportedFileDatetimeMillis)));
+        }
     }
 
     /**
@@ -99,7 +106,10 @@ public class Params {
     private void loadParams(){
 
         logger.debug("Loading SSM parameters");
-        AWSSimpleSystemsManagement ssmClient = AWSSimpleSystemsManagementClientBuilder.standard().build();
+        AWSSimpleSystemsManagement ssmClient = AWSSimpleSystemsManagementClientBuilder
+                .standard()
+                .withRegion(this.awsRegion.getName())
+                .build();
         GetParametersByPathResult results = ssmClient.getParametersByPath(new GetParametersByPathRequest()
                 .withPath(PARAM_PATH.formatted(getEnv()))
                 .withWithDecryption(true));
