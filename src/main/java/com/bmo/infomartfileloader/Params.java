@@ -27,7 +27,9 @@ public class Params {
 
     final String PARAM_PATH = "/application/infomart/%s/export/";
     final String PARAM_S3_BUCKET = "s3-bucket";
-    final String PARAM_S3_PREFIX = "s3-prefix";
+    final String PARAM_S3_CRDS_PREFIX = "s3-crds-prefix";
+
+    final String PARAM_S3_INFOMART_PREFIX = "s3-infomart-prefix";
     final String PARAM_EXPORT_DIR = "export-dir";
     final String PARAM_CRDS_PGP_KEY = "crds-pgp-key";
     final String PARAM_TEMP_DIR = "temp-dir";
@@ -39,8 +41,11 @@ public class Params {
     @Getter @Value("${infomart.s3bucket:null}")
     private String s3bucket = null;
 
-    @Getter @Value("${infomart.s3prefix:null}")
-    private String s3prefix = null;
+    @Getter @Value("${infomart.s3prefix_crds:null}")
+    private String s3prefixCrds = null;
+
+    @Getter @Value("${infomart.s3prefix_infomart:null}")
+    private String s3PrefixInfomart;
 
     @Getter @Value("${infomart.temp_dir:null}")
     private String tempDir = null;
@@ -95,8 +100,9 @@ public class Params {
                     .build();
             PutParameterResult ppr = ssmClient.putParameter(new PutParameterRequest()
                 .withType(ParameterType.String)
-                .withName(PARAM_PATH.formatted(getEnv()) + PARAM_LAST_EXPORT_DATETIME)
+                .withName(String.format(PARAM_PATH, getEnv()) + PARAM_LAST_EXPORT_DATETIME)
                 .withValue(String.valueOf(lastExportedFileDatetimeMillis)));
+
         }
     }
 
@@ -111,7 +117,7 @@ public class Params {
                 .withRegion(this.awsRegion.getName())
                 .build();
         GetParametersByPathResult results = ssmClient.getParametersByPath(new GetParametersByPathRequest()
-                .withPath(PARAM_PATH.formatted(getEnv()))
+                .withPath(String.format(PARAM_PATH, getEnv()))
                 .withWithDecryption(true));
         for (Parameter parm : results.getParameters()){
             String parmName = parm.getName().substring(parm.getName().lastIndexOf('/')+1);
@@ -120,10 +126,15 @@ public class Params {
                     s3bucket = parm.getValue();
                     logger.debug("Found s3bucket param. Value: " + s3bucket);
                     break;
-                case PARAM_S3_PREFIX:
-                    s3prefix = parm.getValue();
-                    if (!s3prefix.endsWith("/")) s3prefix += "/";
-                    logger.debug("Found s3prefix param. Value: " + s3prefix);
+                case PARAM_S3_CRDS_PREFIX:
+                    s3prefixCrds = parm.getValue();
+                    if (!s3prefixCrds.endsWith("/")) s3prefixCrds += "/";
+                    logger.debug("Found crds s3prefix param. Value: " + s3prefixCrds);
+                    break;
+                case PARAM_S3_INFOMART_PREFIX:
+                    s3PrefixInfomart = parm.getValue();
+                    if (!s3PrefixInfomart.endsWith("/")) s3PrefixInfomart += "/";
+                    logger.debug("Found infomart s3prefix param. Value: " + s3PrefixInfomart);
                     break;
                 case PARAM_CRDS_PGP_KEY:
                     pgpKey = parm.getValue();

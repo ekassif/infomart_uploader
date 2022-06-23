@@ -18,7 +18,8 @@ upload it to S3 and then log success or failure information.
     * **infomart.use_ssm**: OPTIONAL with default=true: If "false", you must provide all necessary parameters using ENV variables. This is for testing purposes only.
 * The following SSM parameters needed for this service to run ($ENV is defined above):
     * **/application/infomart/$ENV/export/s3-bucket**: The S3 bucket name to which this service will upload the infomart export files
-    * **/application/infomart/$ENV/export/s3-prefix**: The S3 prefix to use for the files this service will upload to S3. Example "/infomart/exports/"
+    * **/application/infomart/$ENV/export/s3-crds-prefix**: The S3 prefix to use for the files this service will upload to S3. Example "/crds/"
+    * **/application/infomart/$ENV/export/s3-infomart-prefix**: The S3 prefix to use for the files not PGP encrypted. Example "/infomart/"
     * **/application/infomart/$ENV/export/export-dir**: The directory on the windows server to monitor for infomart exports
     * **/application/infomart/$ENV/export/crds-pgp-key**: The encryption key for CRDS
     * **/application/infomart/$ENV/export/temp-dir**: The temporary directory to store the zip/encrypted files on EC2

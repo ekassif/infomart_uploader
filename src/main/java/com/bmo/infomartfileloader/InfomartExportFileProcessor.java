@@ -19,6 +19,8 @@ import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
@@ -26,6 +28,7 @@ public class InfomartExportFileProcessor {
 
     // Return codes above zero mean it's ok (e.g. file uploaded already)
     private static final int RC_NOT_DIRECTORY = 10;
+    private static final int RC_FILE_NAME_PATTERN_MISMATCH = 11;
     private static final int RC_FILE_ALREADY_UPLOADED = 20;
     private static final int RC_ERROR = -100;
     private static final int RC_WARNING = 100;
@@ -40,6 +43,9 @@ public class InfomartExportFileProcessor {
 
     @Autowired
     private PGPUtils pgpUtils;
+
+    Pattern fileNamePattern = Pattern.compile("export_(\\d+)_(\\d{4})_(\\d\\d)_(\\d\\d)_(\\d\\d)_(\\d\\d)_(\\d\\d)");
+    String exportFileNameTemplate = "INFOMART.CAD.HRLY_NACCC_%s_%s";
 
     @Scheduled(initialDelay = 30000, fixedDelay = 30000)
     public void run(){
@@ -133,24 +139,39 @@ public class InfomartExportFileProcessor {
     public Results<File> processExportFile(File file){
         logger.debug("Processing file: " + file.getName());
         // Confirm the file is an exported directory with the three expected files within it
+
+        String cadFileName = null;
         if (!file.isDirectory()){
-            logger.warn("File '%s' is not a directory. Skipping...".formatted(file.getName()));
+            logger.warn(String.format("File '%s' is not a directory. Skipping...", file.getName()));
             return Results.<File>builder()
                     .value(file)
                     .returnCode(RC_NOT_DIRECTORY)
-                    .errorMessage("File %s is not a directory and will not be processed".formatted(file.getName()))
+                    .errorMessage(String.format("File %s is not a directory and will not be processed", file.getName()))
                     .build();
         }
         else{
-            // todo: we will skip this step for now. Confirm directory contents match what we expect in this directory
+            Matcher matcher = fileNamePattern.matcher(file.getName());
+            if (!matcher.matches()){
+                logger.warn("File name does not match pattern we are looking for. FileName: " + file.getName());
+                return Results.<File>builder()
+                        .value(file)
+                        .returnCode(RC_FILE_NAME_PATTERN_MISMATCH)
+                        .errorMessage("File name does not match pattern we are looking for. FileName: " + file.getName())
+                        .build();
+            }
+
+            String fileDateTime = matcher.group(2) + matcher.group(3) + matcher.group(4) + matcher.group(5) + matcher.group(6) + matcher.group(7);
+            cadFileName = String.format(exportFileNameTemplate, matcher.group(1), fileDateTime);
         }
 
-        String s3FileName = params.getS3prefix();
-        s3FileName += file.getName() + ".zip.pgp";
+        String s3CrdsFileName = params.getS3prefixCrds();
+        s3CrdsFileName += cadFileName + ".zip.pgp";
+
+        String s3InfomartFileName = params.getS3PrefixInfomart() + file.getName() + ".zip";
 
         // Check if this file has already been uploaded to S3.
         try{
-            if (s3Utils.exists(s3FileName)){
+            if (s3Utils.exists(s3CrdsFileName)){
                 return Results.<File>builder()
                         .value(file)
                         .errorMessage("File has already been uploaded")
@@ -194,7 +215,8 @@ public class InfomartExportFileProcessor {
 
         // Push to S3
         try {
-            s3Utils.uploadFile(encFile, s3FileName);
+            s3Utils.uploadFile(zipFile, s3InfomartFileName);
+            s3Utils.uploadFile(encFile, s3CrdsFileName);
         }
         catch (Exception e){
             return Results.<File>builder()
