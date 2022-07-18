@@ -25,7 +25,7 @@ import java.util.Date;
 public class Params {
     Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    final String PARAM_PATH = "/application/infomart/%s/export/";
+    final String PARAM_PATH = "/Infomart/%s/export/";
     final String PARAM_S3_BUCKET = "s3-bucket";
     final String PARAM_S3_CRDS_PREFIX = "s3-crds-prefix";
 
