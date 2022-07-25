@@ -45,7 +45,7 @@ public class InfomartExportFileProcessor {
     private PGPUtils pgpUtils;
 
     Pattern fileNamePattern = Pattern.compile("export_(\\d+)_(\\d{4})_(\\d\\d)_(\\d\\d)_(\\d\\d)_(\\d\\d)_(\\d\\d)");
-    String exportFileNameTemplate = "INFOMART.CAD.HRLY_NACCC_%s_%s";
+    String exportFileNameTemplate = "INFOMART-CAD.HRLY_NACCC_ANALYTICSDATA_%s_%s";
 
     @Scheduled(initialDelay = 30000, fixedDelay = 30000)
     public void run(){
