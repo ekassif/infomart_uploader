@@ -26,8 +26,13 @@ public class Params {
     Logger logger = LoggerFactory.getLogger(this.getClass());
 
     final String PARAM_PATH = "/Infomart/%s/export/";
+
+//    final String PARAM_PATH = "/application/infomart/%s/export/";
+
     final String PARAM_S3_BUCKET = "s3-bucket";
     final String PARAM_S3_CRDS_PREFIX = "s3-crds-prefix";
+
+    final String PARAM_S3_CANONICAL_ID = "s3-canonical-id";
 
     final String PARAM_S3_INFOMART_PREFIX = "s3-infomart-prefix";
     final String PARAM_EXPORT_DIR = "export-dir";
@@ -65,6 +70,9 @@ public class Params {
     @Value("${infomart.use_ssm:true}")
     boolean useSSM;
 
+    @Getter @Value("${infomart.canonical_id:null}")
+    private String canonicalId;
+
     Region awsRegion;
 
     @PostConstruct
@@ -99,9 +107,10 @@ public class Params {
                     .withRegion(this.awsRegion.getName())
                     .build();
             PutParameterResult ppr = ssmClient.putParameter(new PutParameterRequest()
-                .withType(ParameterType.String)
-                .withName(String.format(PARAM_PATH, getEnv()) + PARAM_LAST_EXPORT_DATETIME)
-                .withValue(String.valueOf(lastExportedFileDatetimeMillis)));
+                    .withType(ParameterType.String)
+                    .withOverwrite(true)
+                    .withName(String.format(PARAM_PATH, getEnv()) + PARAM_LAST_EXPORT_DATETIME)
+                    .withValue(String.valueOf(lastExportedFileDatetimeMillis)));
 
         }
     }
@@ -152,6 +161,10 @@ public class Params {
                     tempDir = parm.getValue();
                     if (!tempDir.endsWith("/")) tempDir += "/";
                     logger.debug("Found the temp dir to store working files in: " + tempDir);
+                    break;
+                case PARAM_S3_CANONICAL_ID:
+                    canonicalId = parm.getValue();
+                    logger.debug("Found the canonical id: " + canonicalId);
                     break;
             }
         }

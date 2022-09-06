@@ -2,6 +2,9 @@ package com.bmo.infomartfileloader.util;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.AccessControlList;
+import com.amazonaws.services.s3.model.CanonicalGrantee;
+import com.amazonaws.services.s3.model.Permission;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.bmo.infomartfileloader.Params;
 import org.slf4j.Logger;
@@ -42,6 +45,12 @@ public class S3Utils {
 
 
         PutObjectRequest request = new PutObjectRequest(params.getS3bucket(), s3key, file);
+
+        AccessControlList acl = new AccessControlList();
+        acl.grantPermission(
+                new CanonicalGrantee(params.getCanonicalId()),
+                Permission.FullControl);
+        request.setAccessControlList(acl);
 
         // Content type should be detected automatically
 //            ObjectMetadata metadata = new ObjectMetadata();

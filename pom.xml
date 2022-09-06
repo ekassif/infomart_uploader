@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.bmo</groupId>
     <artifactId>InfomartFileLoader</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2</version>
     <name>InfomartFileLoader</name>
     <description>Informart Export File Uploader to S3</description>
     <properties>
